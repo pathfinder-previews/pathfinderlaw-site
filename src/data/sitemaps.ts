@@ -7,6 +7,7 @@ import { posts } from './blogPosts';
 import { cities } from './cities';
 import { subArticles, ARTICLE_BASE } from './subArticles';
 import { articlesB } from './articlesB';
+import { spanishPages } from './spanish';
 
 export interface SitemapUrl {
   path: string; // leading and trailing slash
@@ -34,6 +35,7 @@ export const sitemaps: Record<string, SitemapUrl[]> = {
     '/about-us/',
     '/virginia-workers-comp-faq/',
     EASTERN_SHORE,
+    ...spanishPages.map((p) => p.path),
     ...Object.values(articlesB).map((a) => a.path),
   ]),
   practice_areas: urls([

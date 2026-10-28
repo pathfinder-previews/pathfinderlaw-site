@@ -3,8 +3,11 @@
 // forms on every other page. It posts JSON to /api/contact (the Worker in
 // src/worker/). See docs/form-pipeline.md.
 import { site } from '../data/site';
+import { englishCopy } from '../data/formCopy';
+import type { FormCopy } from '../data/formCopy';
 
-const { id = 'contact-form' } = Astro.props;
+const { id = 'contact-form', copy: copyProp } = Astro.props as { id?: string; copy?: FormCopy };
+const c: FormCopy = copyProp ?? englishCopy;
 
 // Turnstile public site key, supplied at build time. Cloudflare's published
 // always-pass test key is used for previews. A live build without the real
@@ -16,41 +19,41 @@ if (!siteKey && import.meta.env.PUBLIC_SITE_LIVE === '1') {
 }
 ---
 <div class="form-card">
-  <h3>Talk With Us</h3>
-  <form class="contact-form" id={id} method="post" action="/contact/" novalidate data-sitekey={siteKey || TEST_SITE_KEY} data-phone={site.phoneHeader} data-phone-href={site.phoneHref}>
+  <h3>{c.heading}</h3>
+  <form class="contact-form" id={id} method="post" action="/contact/" novalidate data-sitekey={siteKey || TEST_SITE_KEY} data-phone={site.phoneHeader} data-phone-href={site.phoneHref} data-copy={JSON.stringify(c)}>
     <div class="field">
-      <label for={`${id}-name`}>Name<span aria-hidden="true">*</span></label>
+      <label for={`${id}-name`}>{c.name}<span aria-hidden="true">*</span></label>
       <input id={`${id}-name`} name="name" type="text" autocomplete="name" required />
     </div>
     <div class="field-pair">
       <div class="field">
-        <label for={`${id}-email`}>Email<span aria-hidden="true">*</span></label>
+        <label for={`${id}-email`}>{c.email}<span aria-hidden="true">*</span></label>
         <input id={`${id}-email`} name="email" type="email" autocomplete="email" required />
       </div>
       <div class="field">
-        <label for={`${id}-phone`}>Phone Number<span aria-hidden="true">*</span></label>
+        <label for={`${id}-phone`}>{c.phone}<span aria-hidden="true">*</span></label>
         <input id={`${id}-phone`} name="phone" type="tel" autocomplete="tel" required />
       </div>
     </div>
     <div class="field">
-      <label for={`${id}-message`}>Message<span aria-hidden="true">*</span></label>
+      <label for={`${id}-message`}>{c.message}<span aria-hidden="true">*</span></label>
       <textarea id={`${id}-message`} name="message" required></textarea>
-      <p class="field-hint">Please keep this short. Do not include confidential or sensitive details yet.</p>
+      <p class="field-hint">{c.hint}</p>
     </div>
     <!-- Required acknowledgement (ethics review, LEO 1842). Wording drafted with the owner and approved by him. -->
     <div class="consent">
       <input id={`${id}-consent`} name="acknowledged" type="checkbox" required />
       <label for={`${id}-consent`}>
-        I understand sending this form does not make me a client or create an attorney-client relationship, and Pathfinder Injury Law has not agreed to represent me.<span aria-hidden="true">*</span>
+        {c.consent}<span aria-hidden="true">*</span>
       </label>
     </div>
     <!-- Spam trap: people never see this field, bots fill it in. -->
     <div class="hp" aria-hidden="true">
-      <label for={`${id}-company`}>Company</label>
+      <label for={`${id}-company`}>{c.honeypot}</label>
       <input id={`${id}-company`} name="company" type="text" tabindex="-1" autocomplete="off" />
     </div>
     <div class="ts-widget"></div>
-    <button class="btn btn-primary" type="submit">Send Inquiry</button>
+    <button class="btn btn-primary" type="submit">{c.button}</button>
     <p class="form-status" role="status" aria-live="polite"></p>
   </form>
 </div>
@@ -78,6 +81,7 @@ if (!siteKey && import.meta.env.PUBLIC_SITE_LIVE === '1') {
     const button = form.querySelector('button[type="submit"]') as HTMLButtonElement;
     const widget = form.querySelector('.ts-widget') as HTMLElement;
     const state = form as any;
+    const copy = JSON.parse(form.dataset.copy || '{}');
     let token = '';
     let widgetId: string | undefined;
 
@@ -94,28 +98,28 @@ if (!siteKey && import.meta.env.PUBLIC_SITE_LIVE === '1') {
     if ((window as any).turnstile) state._renderTs();
 
     const showFailure = () => {
-      status.textContent = 'We could not send your message. Please call us at ';
+      status.textContent = copy.failurePrefix;
       const a = document.createElement('a');
       a.href = form.dataset.phoneHref || '';
       a.textContent = form.dataset.phone || '';
-      status.append(a, ' and we will help you right away.');
+      status.append(a, copy.failureSuffix);
     };
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!form.checkValidity()) {
-        status.textContent = 'Please fill in every field marked with a star, including the acknowledgement.';
+        status.textContent = copy.invalid;
         form.reportValidity();
         return;
       }
       if (!token) {
         if (state._tsFailed) return showFailure();
-        status.textContent = 'One moment, we are checking your browser. Please press Send Inquiry again.';
+        status.textContent = copy.waiting;
         return;
       }
       const data = new FormData(form);
       button.disabled = true;
-      status.textContent = 'Sending...';
+      status.textContent = copy.sending;
       try {
         const res = await fetch('/api/contact', {
           method: 'POST',
@@ -135,15 +139,15 @@ if (!siteKey && import.meta.env.PUBLIC_SITE_LIVE === '1') {
         const result = await res.json().catch(() => ({}));
         if (res.ok && result.ok) {
           if (result.preview) {
-            status.textContent = result.message || 'Preview: nothing was sent.';
+            status.textContent = result.message || copy.previewFallback;
             button.disabled = false;
             return;
           }
-          location.href = '/thank-you/';
+          location.href = copy.thankYou;
           return;
         }
         if (res.status === 400) {
-          status.textContent = 'Please check that every field is filled in correctly and the acknowledgement is checked.';
+          status.textContent = copy.badRequest;
         } else {
           showFailure();
         }

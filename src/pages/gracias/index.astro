@@ -1,0 +1,34 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHero from '../../components/PageHero.astro';
+import { site } from '../../data/site';
+import { SPANISH_UI } from '../../data/spanish';
+
+// Spanish confirmation page (DRAFT wording in src/data/spanish.ts). Like /thank-you/, it stays out
+// of search results and out of the sitemaps, and unlike the other pages it is noindex even in a
+// live build (Base noindex prop, plus public/_headers).
+const body = SPANISH_UI.thanksBody.text.replace('{phone}', `<a href="${site.phoneHref}">${site.phoneDisplay}</a>`);
+---
+<Base
+  lang="es"
+  noindex
+  title={SPANISH_UI.thanksTitle.text}
+  description={SPANISH_UI.thanksDescription.text}
+  path="/gracias/"
+  crumbs={[{ name: SPANISH_UI.thanksHeading.text, path: '/gracias/' }]}
+  overlay
+>
+  <PageHero title={SPANISH_UI.thanksHeading.text} crumbs={[{ name: SPANISH_UI.thanksHeading.text }]} />
+  <div class="wrap info-body">
+    <article class="prose" lang="es">
+      <p class="lead" set:html={body} />
+      <p><a class="btn btn-primary" href="/">{SPANISH_UI.thanksButton.text}</a></p>
+    </article>
+  </div>
+</Base>
+
+<style>
+  .info-body {
+    padding-block: clamp(2.5rem, 6vw, 4.5rem) clamp(3rem, 7vw, 5rem);
+  }
+</style>

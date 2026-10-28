@@ -1,21 +1,31 @@
 ---
 import ContactForm from './ContactForm.astro';
+import type { FormCopy } from '../data/formCopy';
 import { site } from '../data/site';
+
+// English by default. The Spanish pages pass their own wording (src/data/spanish.ts).
+interface Props {
+  points?: string;
+  heading?: string;
+  lede?: string;
+  form?: FormCopy;
+}
+const { points = 'No Pressure', heading = 'Free Consultation', lede = 'Learn how we can help you with your Workers’ Comp case.', form } = Astro.props;
 ---
 <section class="section cta contour on-dark" id="contact">
   <img class="cta-bg" src="/images/photos/tile-c.jpg" alt="" width="1400" height="1050" loading="lazy" />
   <div class="wrap cta-grid">
     <div data-reveal>
       <ul class="cta-points caps">
-        <li>No Pressure</li>
+        <li>{points}</li>
       </ul>
-      <h2>Free Consultation</h2>
+      <h2>{heading}</h2>
       <hr class="rule" />
-      <p class="lede">Learn how we can help you with your Workers’ Comp case.</p>
+      <p class="lede">{lede}</p>
       <a class="cta-phone" href={site.phoneHref}>{site.phoneDisplay}</a>
     </div>
     <div data-reveal>
-      <ContactForm />
+      <ContactForm copy={form} />
     </div>
   </div>
 </section>

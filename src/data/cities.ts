@@ -16,6 +16,8 @@
 //
 // Markup inside strings: [text](address) is a link; {phone} becomes the phone number link.
 
+import { ES_E_01 } from './spanish';
+
 export type Block = string | { list: string[] };
 export type Section = { h: string; body: Block[] };
 export type City = {
@@ -941,6 +943,8 @@ export const cities: City[] = [
       `If you were hurt at work on Virginia’s Eastern Shore, you may be eligible for Workers’ Comp benefits that help with your medical care and part of your lost wages. [Pathfinder Injury Law](${WC}) has an office in Chincoteague and takes clients across Accomack and Northampton counties.`,
       'Work on the Shore can be hard on the body. Poultry and seafood processing, farming and aquaculture, construction, and seasonal tourism and hospitality jobs all carry real risks of injury. When you are hurt, the questions come fast. Who pays for your treatment? What happens to your paycheck? What do you do if the insurance company says no?',
       'Our team can walk you through the claim process, starting with a free consultation, so you can focus on getting better.',
+      // Spanish line (row ES-E-01). DRAFT Spanish: see src/data/spanish.ts.
+      `<span lang="es">${ES_E_01.text}</span>`,
     ],
     sections: [
       {

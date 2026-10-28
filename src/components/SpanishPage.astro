@@ -1,0 +1,108 @@
+---
+import Base from '../layouts/Base.astro';
+import PageHero from './PageHero.astro';
+import ContactSection from './ContactSection.astro';
+import { site } from '../data/site';
+import { spanishPageByPath, SPANISH_UI, SPANISH_FORM } from '../data/spanish';
+import type { Block, Row, Text } from '../data/spanish';
+
+// Template for the Spanish pages. All Spanish wording lives in src/data/spanish.ts (DRAFT).
+// The header, footer and menu stay in English; a visible "English" link sits at the top of the page.
+interface Props {
+  path: string;
+}
+const page = spanishPageByPath(Astro.props.path);
+
+// Same small markup as the city pages: [text](address) and {phone}. Text comes only from our data file.
+const inline = (text: string) =>
+  text
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label: string, href: string) =>
+      /^https?:/.test(href) ? `<a href="${href}" rel="noopener">${label}</a>` : `<a href="${href}">${label}</a>`,
+    )
+    .replace(/\{phone\}/g, `<a href="${site.phoneHref}">${site.phoneHeader}</a>`);
+
+const join = (t: Text) => (Array.isArray(t) ? t.map((r) => r.text).join(' ') : t.text);
+const isList = (b: Block): b is { list: Text[] } => !Array.isArray(b) && 'list' in b;
+
+const slug = (text: string) =>
+  text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[’']/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+const sections = page.sections.map((s) => ({ ...s, id: slug(s.h.text) }));
+const t = (r: Row) => r.text;
+---
+<Base
+  lang="es"
+  title={page.title.text}
+  description={page.description.text}
+  path={page.path}
+  crumbs={[{ name: page.h1.text, path: page.path }]}
+  overlay
+>
+  <PageHero title={page.h1.text} crumbs={[{ name: page.h1.text }]} />
+
+  <div class="wrap page-body">
+    <article class="prose" lang="es">
+      <p class="lang-switch"><a href={page.englishPath} lang="en" hreflang="en">{t(SPANISH_UI.englishLink)}</a></p>
+
+      {page.intro.map((p, i) => <p class={i === 0 ? 'lead' : undefined} set:html={inline(join(p))} />)}
+
+      {sections.map((s) => (
+        <>
+          <h2 id={s.id}>{s.h.text}</h2>
+          {s.body.map((b) =>
+            isList(b) ? (
+              <ul>{b.list.map((li) => <li set:html={inline(join(li))} />)}</ul>
+            ) : (
+              <p set:html={inline(join(b))} />
+            ),
+          )}
+        </>
+      ))}
+    </article>
+
+    <aside class="side" aria-label="Navegación y contacto" lang="es">
+      <div class="side-card side-call">
+        <h2>{t(SPANISH_UI.sideHeading)}</h2>
+        <a class="cta-phone" href={site.phoneHref}>{site.phoneDisplay}</a>
+        <a class="btn btn-primary" href="#contact">{t(SPANISH_UI.sideButton)}</a>
+      </div>
+      <nav class="side-card" aria-label={t(SPANISH_UI.onThisPage)}>
+        <h2>{t(SPANISH_UI.onThisPage)}</h2>
+        <ul class="toc">
+          {sections.map((s) => <li><a href={`#${s.id}`}>{s.h.text}</a></li>)}
+        </ul>
+      </nav>
+    </aside>
+  </div>
+
+  <div lang="es">
+    <ContactSection
+      points={t(SPANISH_UI.ctaPoints)}
+      heading={t(SPANISH_UI.ctaHeading)}
+      lede={t(SPANISH_UI.ctaLede)}
+      form={SPANISH_FORM}
+    />
+  </div>
+</Base>
+
+<style>
+  .lang-switch {
+    margin: 0 0 1rem;
+    font-weight: 700;
+  }
+  .lang-switch a {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border: 2px solid currentColor;
+    border-radius: 999px;
+    text-decoration: none;
+  }
+  .lang-switch a:hover {
+    text-decoration: underline;
+  }
+</style>

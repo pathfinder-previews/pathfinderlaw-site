@@ -441,6 +441,48 @@
       "live": "Virginia Beach Workers' Comp Attorney | Pathfinder Law",
       "new": "Virginia Beach Workers' Comp Attorney | Pathfinder Injury Law",
       "reason": "Round 3 checklist (Bryn, 10-28-26), row 83."
+    },
+    {
+      "address": "/abogados-de-compensacion-al-trabajador-en-richmond/",
+      "field": "title",
+      "live": "Abogados de Compensación al Trabajador en Richmond",
+      "new": "Abogados de compensación al trabajador en Richmond",
+      "reason": "Rebuilt Spanish page (Oct 28 decision): sentence-case Spanish title per the Spanish review, and no \"best lawyers\" or outcome claim. DRAFT: only on the eastern-shore branch until a native speaker has read it."
+    },
+    {
+      "address": "/abogados-de-compensacion-al-trabajador-en-richmond/",
+      "field": "description",
+      "live": "¿Necesita ayuda de los abogados de compensación de trabajadores de Richmond? Comuníquese con Pathfinder Injury Law al 804-505-0633.",
+      "new": "¿Se lastimó en el trabajo en Richmond? Pathfinder Injury Law atiende casos de compensación al trabajador. Consulta gratis: 804-505-0633.",
+      "reason": "Rebuilt Spanish page (Oct 28 decision): the live description claimed \"los mejores abogados\" or had no consultation line; the new one is from the Spanish review (row ES-V-02 / ES-R-02, marked OK). DRAFT: only on the eastern-shore branch until a native speaker has read it."
+    },
+    {
+      "address": "/abogados-de-compensacion-al-trabajador-en-richmond/",
+      "field": "h1",
+      "live": "Abogados de Compensación al Trabajador en Richmond",
+      "new": "Abogados de compensación al trabajador en Richmond",
+      "reason": "Rebuilt Spanish page (Oct 28 decision): sentence-case Spanish title per the Spanish review, and no \"best lawyers\" or outcome claim. DRAFT: only on the eastern-shore branch until a native speaker has read it."
+    },
+    {
+      "address": "/abogados-de-compensacion-al-trabajador-en-virginia/",
+      "field": "title",
+      "live": "Abogados de Compensación al Trabajador en Virginia - Pathfinder Injury Law",
+      "new": "Abogados de compensación al trabajador en Virginia",
+      "reason": "Rebuilt Spanish page (Oct 28 decision): sentence-case Spanish title per the Spanish review, and no \"best lawyers\" or outcome claim. DRAFT: only on the eastern-shore branch until a native speaker has read it."
+    },
+    {
+      "address": "/abogados-de-compensacion-al-trabajador-en-virginia/",
+      "field": "description",
+      "live": "Pathfinder Injury Law tiene los mejores abogados de compensación laboral en Richmond, Virginia. Contáctanos para una consulta gratuita.",
+      "new": "¿Se lastimó en el trabajo en Virginia? Pathfinder Injury Law atiende casos de compensación al trabajador. Consulta gratis: 804-505-0633.",
+      "reason": "Rebuilt Spanish page (Oct 28 decision): the live description claimed \"los mejores abogados\" or had no consultation line; the new one is from the Spanish review (row ES-V-02 / ES-R-02, marked OK). DRAFT: only on the eastern-shore branch until a native speaker has read it."
+    },
+    {
+      "address": "/abogados-de-compensacion-al-trabajador-en-virginia/",
+      "field": "h1",
+      "live": "Abogados de Compensación al Trabajador en Virginia",
+      "new": "Abogados de compensación al trabajador en Virginia",
+      "reason": "Rebuilt Spanish page (Oct 28 decision): sentence-case Spanish title per the Spanish review, and no \"best lawyers\" or outcome claim. DRAFT: only on the eastern-shore branch until a native speaker has read it."
     }
   ]
 }

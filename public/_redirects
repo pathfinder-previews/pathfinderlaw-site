@@ -13,7 +13,9 @@
 #    at the bottom, so each old address does not need its own line.
 
 # Work illness is no longer a case type on the site (this includes the occupational
-# diseases article). The two Spanish pages go to the English practice page (plan notes).
+# diseases article). The two old Spanish addresses are NOT redirected on the eastern-shore
+# branch: they are rebuilt as real Spanish pages there (DRAFT, not for launch until a native
+# speaker has read them). The launch branch eastern-shore-english-only keeps their redirects.
 # Work illness redirects below.
 /virginia-workers-comp-lawyer/virginia-work-illness-lawyer/ /virginia-workers-comp-lawyer/ 301
 /virginia-workers-comp-lawyer/virginia-work-illness-lawyer /virginia-workers-comp-lawyer/ 301
@@ -45,10 +47,6 @@
 /how-long-can-a-workers-comp-claim-stay-open /how-long-can-a-workers-comp-claim-stay-open/ 301
 /virginia-work-injury-lawyer/how-to-settle-a-virginia-workers-comp-dispute /virginia-work-injury-lawyer/how-to-settle-a-virginia-workers-comp-dispute/ 301
 /should-i-accept-a-lump-sum-settlement-for-my-workers-comp-claim /should-i-accept-a-lump-sum-settlement-for-my-workers-comp-claim/ 301
-/abogados-de-compensacion-al-trabajador-en-richmond /virginia-workers-comp-lawyer/ 301
-/abogados-de-compensacion-al-trabajador-en-richmond/ /virginia-workers-comp-lawyer/ 301
-/abogados-de-compensacion-al-trabajador-en-virginia /virginia-workers-comp-lawyer/ 301
-/abogados-de-compensacion-al-trabajador-en-virginia/ /virginia-workers-comp-lawyer/ 301
 /how-to-win-a-virginia-workers-comp-case /how-to-win-a-virginia-workers-comp-case/ 301
 /disclaimer /disclaimer/ 301
 /sitemap /sitemap/ 301

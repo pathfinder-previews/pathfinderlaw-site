@@ -74,7 +74,8 @@ test('XML page sitemap lists the Eastern Shore page once, and arears_served does
 test('redirects: the occupational-diseases redirect stays and nothing redirects the Eastern Shore address', () => {
   const redirects = readFileSync(new URL('../public/_redirects', import.meta.url), 'utf8');
   assert.ok(/occupational-diseases/.test(redirects));
-  assert.ok(!redirects.includes('eastern-shore'));
+  const rules = redirects.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n');
+  assert.ok(!rules.includes('eastern-shore'));
 });
 
 test('redirect targets are built pages', opts, () => {

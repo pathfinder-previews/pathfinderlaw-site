@@ -2,6 +2,10 @@
 /thank-you/
   X-Robots-Tag: noindex, nofollow
 
+# Spanish confirmation page: same rule.
+/gracias/
+  X-Robots-Tag: noindex, nofollow
+
 # The feed is written to feed/index.html so /feed/ resolves; this says it is RSS.
 /feed/
   Content-Type: application/rss+xml; charset=utf-8

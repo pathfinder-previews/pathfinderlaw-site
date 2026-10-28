@@ -5,6 +5,7 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { site } from '../data/site';
 import { cities } from '../data/cities';
+import { languagePairs, SPANISH_DRAFT } from '../data/spanish';
 
 interface Props {
   title: string;
@@ -18,9 +19,13 @@ interface Props {
   overlay?: boolean;
   // Practice-area and blog pages credit Bryn Swartz as author, as the old site did.
   author?: boolean;
+  // Page language. English everywhere except the Spanish pages (src/components/SpanishPage.astro).
+  lang?: 'en' | 'es';
+  // Always noindex, even in a live build (the Spanish thank-you page).
+  noindex?: boolean;
 }
 
-const { title, description, path, crumbs = [], datePublished, overlay = false, author = false } = Astro.props;
+const { title, description, path, crumbs = [], datePublished, overlay = false, author = false, lang = 'en', noindex = false } = Astro.props;
 const origin = Astro.site!.origin;
 const url = new URL(path, origin).href;
 const image = new URL('/images/open-graph-card.jpg', origin).href;
@@ -28,7 +33,17 @@ const image = new URL('/images/open-graph-card.jpg', origin).href;
 // Pages are hidden from search engines unless the build says the site is live.
 // Previews never set PUBLIC_SITE_LIVE, so they stay hidden by default.
 const live = import.meta.env.PUBLIC_SITE_LIVE === '1';
-const robots = live ? 'max-image-preview:large' : 'noindex, nofollow, max-image-preview:large';
+const robots = live && !noindex ? 'max-image-preview:large' : 'noindex, nofollow, max-image-preview:large';
+
+// Language links: each English page and its Spanish page point at each other, and x-default is the English page.
+const pair = languagePairs.find((p) => p.english === path || p.spanish === path);
+const alternates = pair
+  ? [
+      { hreflang: 'en', href: new URL(pair.english, origin).href },
+      { hreflang: 'es', href: new URL(pair.spanish, origin).href },
+      { hreflang: 'x-default', href: new URL(pair.english, origin).href },
+    ]
+  : [];
 
 // LegalService (local-business) data, built from src/data/site.ts and the city pages so it cannot drift.
 // Deliberately absent: geo coordinates (not in site.ts; they must come from the Google Maps pin),
@@ -112,7 +127,7 @@ const graph = [
     url,
     name: title,
     description,
-    inLanguage: 'en-US',
+    inLanguage: lang === 'es' ? 'es-US' : 'en-US',
     isPartOf: { '@id': `${origin}/#website` },
     breadcrumb: { '@id': `${url}#breadcrumblist` },
     ...(author ? { author: { '@id': `${origin}/#author` }, creator: { '@id': `${origin}/#author` } } : {}),
@@ -136,19 +151,21 @@ const graph = [
 const jsonLd = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph });
 ---
 <!doctype html>
-<html lang="en">
+<html lang={lang}>
   <head>
     <meta charset="utf-8" />
+    {SPANISH_DRAFT && lang === 'es' && <Fragment set:html="<!-- DRAFT SPANISH: not yet read by a native speaker, and the form wording is not yet approved by Bryn. Do not publish. -->" />}
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta name="robots" content={robots} />
     <link rel="canonical" href={url} />
+    {alternates.map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
     <link rel="alternate" type="application/rss+xml" title={`${site.name} Feed`} href="/feed/" />
     <link rel="icon" href="/favicon.png" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale" content={lang === 'es' ? 'es_US' : 'en_US'} />
     <meta property="og:site_name" content={title} />
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
