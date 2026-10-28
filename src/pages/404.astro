@@ -4,7 +4,7 @@ import PageHero from '../components/PageHero.astro';
 import { site } from '../data/site';
 
 // Error pages should not be canonical to the missing address, so the canonical points to the home page.
-// Base sets robots from PUBLIC_SITE_LIVE; previews stay noindex, nofollow, as before.
+// noindex keeps this page out of search results on the live site too; previews are noindex, nofollow anyway.
 const title = 'Page Not Found - Pathfinder Injury Law';
 const description = 'This page could not be found. Return to the Pathfinder Injury Law home page or call the firm.';
 
@@ -17,7 +17,7 @@ const mainPages = [
   { label: 'Blog', href: '/blog/' },
 ];
 ---
-<Base title={title} description={description} path="/" overlay>
+<Base title={title} description={description} path="/" overlay noindex>
   <PageHero title="We could not find that page" />
   <div class="wrap info-body">
     <article class="prose">

@@ -17,17 +17,20 @@ interface Props {
   overlay?: boolean;
   // Practice-area and blog pages credit Bryn Swartz as author, as the old site did.
   author?: boolean;
+  // Pages that must stay out of search results even on the live site (404, thank-you).
+  noindex?: boolean;
 }
 
-const { title, description, path, crumbs = [], datePublished, overlay = false, author = false } = Astro.props;
+const { title, description, path, crumbs = [], datePublished, overlay = false, author = false, noindex = false } = Astro.props;
 const origin = Astro.site!.origin;
 const url = new URL(path, origin).href;
 const image = new URL('/images/open-graph-card.jpg', origin).href;
 
 // Pages are hidden from search engines unless the build says the site is live.
 // Previews never set PUBLIC_SITE_LIVE, so they stay hidden by default.
+// A page can opt out of the live setting with the noindex prop.
 const live = import.meta.env.PUBLIC_SITE_LIVE === '1';
-const robots = live ? 'max-image-preview:large' : 'noindex, nofollow, max-image-preview:large';
+const robots = live && !noindex ? 'max-image-preview:large' : 'noindex, nofollow, max-image-preview:large';
 
 // Structured data: the same four blocks the current site carries on every page.
 const trail = [{ name: 'Home', path: '/' }, ...crumbs];

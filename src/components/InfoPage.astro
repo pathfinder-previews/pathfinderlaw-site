@@ -11,10 +11,11 @@ interface Props {
   path: string;
   h1: string;
   showContact?: boolean;
+  noindex?: boolean;
 }
-const { title, description, path, h1, showContact = true } = Astro.props;
+const { title, description, path, h1, showContact = true, noindex = false } = Astro.props;
 ---
-<Base title={title} description={description} path={path} crumbs={[{ name: h1, path }]} overlay>
+<Base title={title} description={description} path={path} crumbs={[{ name: h1, path }]} overlay noindex={noindex}>
   <PageHero title={h1} crumbs={[{ name: h1 }]} />
   <div class="wrap info-body">
     <article class="prose">
