@@ -3,6 +3,7 @@ import Base from '../layouts/Base.astro';
 import TornEdge from '../components/TornEdge.astro';
 import TopicIcon from '../components/TopicIcon.astro';
 import ContactSection from '../components/ContactSection.astro';
+import HeroVideo from '../components/HeroVideo.astro';
 
 // Title, description and wording match the current live homepage, except the
 // approved results wording (migration plan, Section VIII, fix 1).
@@ -52,6 +53,7 @@ const results = [
   <!-- Hero -->
   <section class="hero on-dark">
     <img class="hero-photo" src="/images/photos/hero-hiker.jpg" alt="" width="2000" height="1329" fetchpriority="high" />
+    <HeroVideo mp4="/video/hero-loop.mp4" webm="/video/hero-loop.webm" poster="/images/photos/hero-hiker.jpg" />
     <div class="wrap">
       <p class="hero-kicker">Virginia</p>
       <h1>Workers’ Comp Lawyer</h1>

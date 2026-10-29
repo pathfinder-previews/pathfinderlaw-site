@@ -1,0 +1,216 @@
+---
+// Optional background video for the home hero. Inspired by the "quiet moving picture behind the
+// words" idea, built to be safe: the static hero photo stays the first paint and the LCP image, and
+// the video is only fetched by script, on wide screens, with no reduced-motion or data-saver
+// request. If the files are missing, nothing changes (the poster photo just stays).
+//
+// To swap files, change the mp4 / webm props where this is used (src/pages/index.astro).
+const {
+  mp4 = '/video/hero-loop.mp4',
+  webm = '/video/hero-loop.webm',
+  poster = '/images/photos/hero-hiker.jpg',
+} = Astro.props;
+---
+<video
+  class="hero-video"
+  muted
+  playsinline
+  loop
+  autoplay
+  preload="none"
+  disablepictureinpicture
+  aria-hidden="true"
+  tabindex="-1"
+  poster={poster}
+  data-mp4={mp4}
+  data-webm={webm}
+></video>
+<button type="button" class="hero-video-toggle" hidden>
+  <svg class="icon-pause" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6 4h4v16H6zM14 4h4v16h-4z" /></svg>
+  <svg class="icon-play" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M7 4l13 8-13 8z" /></svg>
+  <span class="label">Pause background video</span>
+</button>
+
+<script>
+  // Everything here is a progressive enhancement. Any failure leaves the poster photo as is.
+  const video = document.querySelector<HTMLVideoElement>('.hero-video');
+  const toggle = document.querySelector<HTMLButtonElement>('.hero-video-toggle');
+  if (video && toggle) init(video, toggle);
+
+  function init(video: HTMLVideoElement, toggle: HTMLButtonElement) {
+    const wide = matchMedia('(min-width: 768px)');
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    const conn = (navigator as any).connection;
+    const saveData = !!(conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || '')));
+    const label = toggle.querySelector('.label') as HTMLElement;
+    let loaded = false;
+    let failed = false;
+    let userPaused = false;
+    let inView = true;
+
+    const allowed = () => !failed && !saveData && wide.matches && !reduced.matches;
+
+    function setLabel() {
+      const paused = video.paused;
+      toggle.classList.toggle('is-paused', paused);
+      label.textContent = paused ? 'Play background video' : 'Pause background video';
+    }
+
+    function giveUp() {
+      failed = true;
+      video.classList.remove('is-playing');
+      toggle.hidden = true;
+      video.pause();
+      video.removeAttribute('src');
+      video.querySelectorAll('source').forEach((s) => s.remove());
+      video.load(); // drops anything already requested
+    }
+
+    function load() {
+      if (loaded) return;
+      loaded = true;
+      const types: Array<[string | undefined, string]> = [
+        [video.dataset.webm, 'video/webm; codecs="vp9"'],
+        [video.dataset.mp4, 'video/mp4'],
+      ];
+      let errors = 0;
+      const total = types.filter(([src]) => src).length;
+      for (const [src, type] of types) {
+        if (!src) continue;
+        const s = document.createElement('source');
+        s.src = src;
+        s.type = type;
+        s.addEventListener('error', () => {
+          if (++errors >= total) giveUp();
+        });
+        video.appendChild(s);
+      }
+      if (!total) return giveUp();
+      video.addEventListener('error', giveUp);
+      video.load();
+    }
+
+    function tryPlay() {
+      if (!allowed() || userPaused || document.hidden || !inView) return;
+      load();
+      const p = video.play();
+      if (p && p.catch) p.catch(() => {});
+    }
+
+    function stopForNow() {
+      if (!video.paused) video.pause();
+    }
+
+    video.addEventListener('playing', () => {
+      if (!allowed()) return stopForNow();
+      video.classList.add('is-playing'); // fade in only once frames are really moving
+      toggle.hidden = false;
+      setLabel();
+    });
+    video.addEventListener('pause', setLabel);
+    video.addEventListener('play', setLabel);
+
+    toggle.addEventListener('click', () => {
+      if (video.paused) {
+        userPaused = false;
+        tryPlay();
+      } else {
+        userPaused = true;
+        video.pause();
+      }
+    });
+
+    // Pause when the hero scrolls away or the tab is hidden; resume (unless the visitor paused).
+    const hero = video.closest('.hero') || video;
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(
+        (entries) => {
+          inView = entries[entries.length - 1].isIntersecting;
+          inView ? tryPlay() : stopForNow();
+        },
+        { threshold: 0.15 },
+      ).observe(hero);
+    }
+    document.addEventListener('visibilitychange', () => (document.hidden ? stopForNow() : tryPlay()));
+
+    // Live changes: shrinking below 768px or turning on reduced motion puts the photo back.
+    function recheck() {
+      if (allowed()) return tryPlay();
+      stopForNow();
+      video.classList.remove('is-playing');
+      toggle.hidden = true;
+    }
+    wide.addEventListener('change', recheck);
+    reduced.addEventListener('change', recheck);
+
+    tryPlay();
+  }
+</script>
+
+<style is:global>
+  .hero-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 45%;
+    z-index: -2; /* above the photo (same layer, later in the page), below the fade overlay */
+    opacity: 0;
+    transition: opacity 1.2s ease;
+    pointer-events: none;
+    display: none; /* phones and no-JS: no video box at all */
+  }
+  .hero-video-toggle {
+    display: none;
+  }
+  @media (min-width: 48rem) {
+    .hero-video {
+      display: block;
+    }
+    .hero-video.is-playing {
+      opacity: 1;
+    }
+    .hero-video-toggle {
+      position: absolute;
+      left: max(var(--gutter), 1rem);
+      bottom: 4.75rem; /* clear of the torn edge; the phone bar is centred and never reaches here */
+      z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 2.75rem;
+      min-height: 2.75rem; /* 44px */
+      padding: 0.5rem 1rem 0.5rem 0.85rem;
+      border: 2px solid rgba(255, 255, 255, 0.85);
+      border-radius: 999px;
+      background: rgba(20, 32, 25, 0.62);
+      color: var(--white);
+      font: 600 0.9rem/1 var(--font-body);
+      cursor: pointer;
+      -webkit-backdrop-filter: blur(4px);
+      backdrop-filter: blur(4px);
+    }
+    .hero-video-toggle[hidden] {
+      display: none;
+    }
+    .hero-video-toggle:hover {
+      background: rgba(20, 32, 25, 0.82);
+    }
+    .hero-video-toggle .icon-play,
+    .hero-video-toggle.is-paused .icon-pause {
+      display: none;
+    }
+    .hero-video-toggle.is-paused .icon-play {
+      display: block;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-video {
+      display: none;
+    }
+    .hero-video-toggle {
+      display: none !important;
+    }
+  }
+</style>
