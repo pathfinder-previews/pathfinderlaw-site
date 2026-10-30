@@ -1,5 +1,5 @@
-import { FIRM_PHONE, MIN_FILL_MS, TURNSTILE_TEST_SECRET, TURNSTILE_VERIFY_URL } from './config.ts';
-import { logCode, ping } from './alerts.ts';
+import { DEFAULT_ALLOWED_HOSTNAMES, FIRM_PHONE, MIN_FILL_MS, TURNSTILE_TEST_SECRET, TURNSTILE_VERIFY_URL } from './config.ts';
+import { alertThrottled, logCode, ping } from './alerts.ts';
 import { SendError, sendMail } from './google.ts';
 import { decide, loadRules } from './screen.ts';
 import type { Deps, Env } from './types.ts';
@@ -9,19 +9,33 @@ import { validate, type Submission } from './validate.ts';
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
 
-type Turnstile = 'pass' | 'fail' | 'error';
+// pass: Cloudflare says human. fail: Cloudflare says not human (or no token).
+// error: Cloudflare could not be reached (an outage; the lead is still delivered).
+// not_configured: TURNSTILE_SECRET is missing (a setup mistake; delivered, alarm raised).
+// wrong_hostname: a valid token, but issued on a site not in ALLOWED_HOSTNAMES (treated like fail).
+type Turnstile = 'pass' | 'fail' | 'error' | 'not_configured' | 'wrong_hostname';
+
+export function allowedHostnames(env: Env): string[] {
+  return (env.ALLOWED_HOSTNAMES || DEFAULT_ALLOWED_HOSTNAMES)
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+}
 
 async function verifyTurnstile(env: Env, deps: Deps, token: string, ip: string | null): Promise<Turnstile> {
   const secret = env.TURNSTILE_SECRET || (env.PREVIEW_MODE ? TURNSTILE_TEST_SECRET : '');
-  if (!secret) return 'error';
+  if (!secret) return 'not_configured';
   if (!token) return 'fail';
   try {
     const form = new URLSearchParams({ secret, response: token });
     if (ip) form.set('remoteip', ip); // sent to Cloudflare for the check; never stored or logged
     const res = await deps.fetch(env.TURNSTILE_VERIFY_URL || TURNSTILE_VERIFY_URL, { method: 'POST', body: form });
     if (!res.ok) return 'error';
-    const data = (await res.json()) as { success?: boolean };
-    return data.success === true ? 'pass' : 'fail';
+    const data = (await res.json()) as { success?: boolean; hostname?: string };
+    if (data.success !== true) return 'fail';
+    // Previews run on test addresses with the always-pass test key: no hostname check there.
+    if (!env.PREVIEW_MODE && data.hostname && !allowedHostnames(env).includes(data.hostname.toLowerCase())) return 'wrong_hostname';
+    return 'pass';
   } catch {
     return 'error';
   }
@@ -34,10 +48,26 @@ export interface Processed {
   delivery: 'sent' | 'failed' | 'skipped';
 }
 
-export function emailBody(sub: Submission, o: { id: string; outcome: string; reason: string; logged: boolean }) {
+const TURNSTILE_LINE: Record<string, string> = {
+  pass: 'pass',
+  fail: 'fail',
+  wrong_hostname: 'fail (token issued for a hostname not in ALLOWED_HOSTNAMES)',
+  error: 'spam check unavailable (Cloudflare could not be reached; delivered anyway)',
+  not_configured: 'TURNSTILE NOT CONFIGURED (the TURNSTILE_SECRET secret is missing; fix it in the Cloudflare dashboard)',
+  skipped: 'skipped (automated self-test)',
+};
+
+// Added to the end of the subject so the "[Screened]" and "[Form Test" filters still match.
+const SUBJECT_MARK: Record<string, string> = {
+  error: ' - spam check unavailable',
+  not_configured: ' - TURNSTILE NOT CONFIGURED',
+};
+
+export function emailBody(sub: Submission, o: { id: string; outcome: string; reason: string; logged: boolean; turnstile?: string }) {
   return [
     `Form: ${sub.form === 'sidebar' ? 'sidebar' : 'main contact'} form`,
     `Screening: ${o.outcome} (${o.reason})`,
+    `Bot check (Turnstile): ${TURNSTILE_LINE[o.turnstile ?? 'skipped'] ?? o.turnstile}`,
     ...(o.logged ? [] : ['WARNING: the form log was unavailable, so this submission was NOT saved to the database. This email is the only record.']),
     '',
     `Name: ${sub.name}`,
@@ -48,7 +78,7 @@ export function emailBody(sub: Submission, o: { id: string; outcome: string; rea
     sub.message,
     '',
     '---',
-    'Treat as confidential. Sending the form does not create an attorney-client relationship. The sender acknowledged that no confidentiality or conflict protections apply until a written agreement is signed.',
+    'The sender confirmed that sending this form does not create an attorney-client relationship and that Pathfinder Injury Law has not agreed to represent them. Treat as confidential.',
     `Reference: ${o.id}`,
     'Reply to this email to reach the sender.',
   ].join('\n');
@@ -93,6 +123,13 @@ export async function processSubmission(
     reason = 'self_test';
   } else {
     turnstile = await verifyTurnstile(env, deps, sub.turnstileToken, opts.ip ?? null);
+    if (turnstile === 'not_configured') {
+      // A setup mistake, not an outage: deliver the lead, but sound the alarm (at most hourly).
+      logCode('turnstile_not_configured');
+      await alertThrottled(env, deps, 'turnstile_not_configured');
+    } else if (turnstile === 'error') {
+      logCode('turnstile_unavailable');
+    }
     if (sub.company) {
       outcome = 'screened';
       reason = 'trap_field';
@@ -101,6 +138,12 @@ export async function processSubmission(
       outcome = 'screened';
       reason = 'turnstile_failed';
       deliver = false;
+    } else if (turnstile === 'wrong_hostname') {
+      // Same handling as a failed check: stored as screened, not emailed, visitor refused.
+      outcome = 'screened';
+      reason = 'turnstile_wrong_hostname';
+      deliver = false;
+      logCode('turnstile_wrong_hostname');
     } else {
       try {
         const rules = await loadRules(env.SETTINGS);
@@ -144,8 +187,8 @@ export async function processSubmission(
     const prefix = opts.test ? `[Form Test ${opts.test.tag}] ` : outcome === 'screened' ? '[Screened] ' : '';
     try {
       await sendMail(env, deps, {
-        subject: `${prefix}Website inquiry (${sub.form === 'sidebar' ? 'sidebar form' : 'main form'})`,
-        body: emailBody(sub, { id, outcome, reason, logged }),
+        subject: `${prefix}Website inquiry (${sub.form === 'sidebar' ? 'sidebar form' : 'main form'})${SUBJECT_MARK[turnstile] ?? ''}`,
+        body: emailBody(sub, { id, outcome, reason, logged, turnstile }),
         replyTo: sub.email,
       });
       delivery = 'sent';
@@ -169,7 +212,7 @@ export async function processSubmission(
   return { status, outcome, reason, delivery };
 }
 
-const turnstileBlocked = (reason: string) => reason === 'turnstile_failed';
+const turnstileBlocked = (reason: string) => reason === 'turnstile_failed' || reason === 'turnstile_wrong_hostname';
 
 export async function handleContact(request: Request, env: Env, deps: Deps = realDeps): Promise<Response> {
   if (request.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405);

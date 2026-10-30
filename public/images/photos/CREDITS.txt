@@ -3,7 +3,7 @@ Photo credits (Unsplash photos are free to use under the Unsplash License, https
 hero-over-shoulder-desktop.webp, hero-over-shoulder-phone.webp   AI-generated with Google Gemini (AI Studio), by Bryn Swartz for the
                  firm. The background and the hiker were generated separately and composited on Oct 29, 2026. Desktop file is the
                  1376x768 composite; the phone file is a 776x768 crop of it (right side). Both saved as WebP.
-tile-a.jpg, tile-b.jpg, tile-c.jpg   Unsplash photos carried over from the previous site
+tile-a.jpg, tile-b.jpg, tile-c.jpg   AI-generated with Google AI Studio (gemini-3-pro-image), 10-30-26. Replace earlier photos whose license could not be confirmed. Prompts: Active/Hero Image Notes - 10-29-26.md, Round 6.
                  (file names on the old site began with "photo-", the Unsplash pattern).
 
 No paid stock photos or paid fonts belong in this public repository.

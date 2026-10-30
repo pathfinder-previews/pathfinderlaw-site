@@ -30,9 +30,18 @@
   "kv_namespaces": [
     { "binding": "SETTINGS", "id": "9cfc276b5526434ea88e48547b257fa0" }
   ],
+  // Plain settings (not secret). ALLOWED_HOSTNAMES: the sites a Turnstile token
+  // may come from, comma-separated. For the launch test, add the locked test
+  // hostname here, deploy, test, then remove it. Change it here, not in the
+  // dashboard: each deploy resets plain variables to what this file says.
+  "vars": {
+    "ALLOWED_HOSTNAMES": "pathfinderlaw.com,www.pathfinderlaw.com"
+  },
   // Cron runs in UTC. 12:15 and 12:30 UTC are 7:15 and 7:30 a.m. Eastern
   // standard time (winter). In daylight time (from March 14, 2027) change
-  // them to 11:15 and 11:30 to stay at the same clock time.
+  // only the hours here, 12 to 11 ("15 11 * * *" and "30 11 * * *"). That is
+  // the only change needed: the code picks the job by the minute (15 = morning
+  // self-test, 30 = digest and purge), so keep the minutes 15 and 30.
   "triggers": {
     "crons": ["15 12 * * *", "30 12 * * *"]
   }

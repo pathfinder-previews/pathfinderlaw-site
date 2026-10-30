@@ -30,6 +30,8 @@ const image = new URL('/images/open-graph-card.jpg', origin).href;
 // Pages are hidden from search engines unless the build says the site is live.
 // Previews never set PUBLIC_SITE_LIVE, so they stay hidden by default.
 const live = import.meta.env.PUBLIC_SITE_LIVE === '1';
+// Blog posts pass datePublished; so does the home page (for its WebPage data), which stays a website.
+const ogType = datePublished && path !== '/' ? 'article' : 'website';
 const robots = live ? 'max-image-preview:large' : 'noindex, nofollow, max-image-preview:large';
 
 // LegalService (local-business) data, built from src/data/site.ts and the city pages so it cannot drift.
@@ -151,8 +153,8 @@ const jsonLd = JSON.stringify({ '@context': 'https://schema.org', '@graph': grap
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <meta property="og:locale" content="en_US" />
-    <meta property="og:site_name" content={title} />
-    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:type" content={ogType} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={url} />

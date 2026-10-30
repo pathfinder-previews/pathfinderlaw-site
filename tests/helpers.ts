@@ -18,8 +18,21 @@ export function makeDb() {
 
 export const STARTER_RULES = JSON.parse(readFileSync(new URL('../docs/starter-rules.json', import.meta.url), 'utf8'));
 
+// The settings store: key "rules" holds `value`; any other key (alert markers) is kept in memory.
 export function makeKv(value: string | null | 'throw') {
-  return { get: async () => { if (value === 'throw') throw new Error('kv down'); return value; } };
+  const other = new Map<string, string>();
+  const puts: { key: string; ttl?: number }[] = [];
+  return {
+    puts,
+    get: async (key: string) => {
+      if (value === 'throw') throw new Error('kv down');
+      return key === 'rules' ? value : other.get(key) ?? null;
+    },
+    put: async (key: string, v: string, o?: { expirationTtl?: number }) => {
+      if (value === 'throw') throw new Error('kv down');
+      other.set(key, v); puts.push({ key, ttl: o?.expirationTtl });
+    },
+  };
 }
 
 export function fakeServiceAccountKey() {
@@ -34,7 +47,7 @@ export interface Calls { url: string; method: string; body: string; auth?: strin
 
 // Routes every outside call the Worker makes to a scripted stand-in.
 let counter = 0;
-export function makeWorld(opts: { gmail?: number; token?: number; turnstile?: 'pass' | 'fail' | 'down'; now?: string } = {}) {
+export function makeWorld(opts: { gmail?: number; token?: number; turnstile?: 'pass' | 'fail' | 'down'; hostname?: string; now?: string } = {}) {
   const calls: Calls[] = [];
   const deps: Deps = {
     now: () => new Date(opts.now ?? '2026-11-03T15:00:00Z'),
@@ -51,7 +64,7 @@ export function makeWorld(opts: { gmail?: number; token?: number; turnstile?: 'p
       if (u.includes('gmail.googleapis.com')) return new Response('{}', { status: opts.gmail ?? 200 });
       if (u.includes('siteverify')) {
         if (opts.turnstile === 'down') throw new Error('network');
-        return Response.json({ success: opts.turnstile !== 'fail' });
+        return Response.json({ success: opts.turnstile !== 'fail', hostname: opts.hostname ?? 'pathfinderlaw.com' });
       }
       return new Response('ok'); // heartbeat / alert pings
     }) as typeof fetch,

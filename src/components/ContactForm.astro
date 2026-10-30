@@ -57,41 +57,94 @@ if (!siteKey && import.meta.env.PUBLIC_SITE_LIVE === '1') {
 
 <script>
   // Loaded only on pages that contain the form (Astro includes this script only
-  // where the component is used). Cloudflare's Turnstile script loads on the
-  // first form found, never on other pages.
+  // where the component is used). Cloudflare's Turnstile script is NOT loaded
+  // with the page: it loads the first time the visitor interacts with a form
+  // (focus, tap or typing), or when they press Send. This keeps the privacy
+  // policy true ("runs in the background when You use the form").
   type TurnstileApi = { render(el: Element, opts: Record<string, unknown>): string; reset(id?: string): void };
   const forms = document.querySelectorAll<HTMLFormElement>('.contact-form');
   const pageLoaded = Date.now();
   const kind = location.pathname === '/' || location.pathname === '/contact/' ? 'main' : 'sidebar';
+  const TS_URL = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+  const TOKEN_WAIT_MS = 60_000;
 
-  if (forms.length) {
-    const s = document.createElement('script');
-    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-    s.async = true;
-    s.onload = () => forms.forEach((f) => (f as any)._renderTs?.());
-    s.onerror = () => forms.forEach((f) => ((f as any)._tsFailed = true));
-    document.head.appendChild(s);
-  }
+  // One shared load for every form on the page. Resolves with the API, or null if blocked.
+  let tsLoad: Promise<TurnstileApi | null> | undefined;
+  const loadTurnstile = () =>
+    (tsLoad ??= new Promise((resolve) => {
+      const ready = (window as any).turnstile as TurnstileApi | undefined;
+      if (ready) return resolve(ready);
+      const s = document.createElement('script');
+      s.src = TS_URL;
+      s.async = true;
+      s.onload = () => resolve(((window as any).turnstile as TurnstileApi) ?? null);
+      s.onerror = () => resolve(null);
+      document.head.appendChild(s);
+    }));
 
   forms.forEach((form) => {
     const status = form.querySelector('.form-status') as HTMLElement;
     const button = form.querySelector('button[type="submit"]') as HTMLButtonElement;
     const widget = form.querySelector('.ts-widget') as HTMLElement;
-    const state = form as any;
     let token = '';
+    let failed = false;
+    let sending = false;
     let widgetId: string | undefined;
+    let started: Promise<void> | undefined;
+    let waiters: ((ok: boolean) => void)[] = [];
+    const settle = (ok: boolean) => {
+      const w = waiters;
+      waiters = [];
+      w.forEach((fn) => fn(ok));
+    };
 
-    state._renderTs = () => {
-      const ts = (window as any).turnstile as TurnstileApi | undefined;
-      if (!ts || widgetId) return;
-      widgetId = ts.render(widget, {
-        sitekey: form.dataset.sitekey,
-        callback: (t: string) => (token = t),
-        'expired-callback': () => (token = ''),
-        'error-callback': () => ((state._tsFailed = true), (token = '')),
+    // Load Turnstile (once) and render this form's widget (once).
+    const start = () =>
+      (started ??= loadTurnstile().then((ts) => {
+        if (!ts) {
+          failed = true;
+          return settle(false);
+        }
+        widgetId = ts.render(widget, {
+          sitekey: form.dataset.sitekey,
+          callback: (t: string) => {
+            token = t;
+            failed = false;
+            settle(true);
+          },
+          'expired-callback': () => (token = ''),
+          'error-callback': () => {
+            failed = true;
+            token = '';
+            settle(false);
+          },
+        });
+      }));
+
+    // First interaction with this form starts the check.
+    const onFirst = () => {
+      start();
+      for (const ev of ['focusin', 'pointerdown', 'input']) form.removeEventListener(ev, onFirst);
+    };
+    for (const ev of ['focusin', 'pointerdown', 'input']) form.addEventListener(ev, onFirst);
+
+    // Resolves true once a token is ready, false if the check failed or took too long.
+    const waitForToken = (): Promise<boolean> => {
+      if (token) return Promise.resolve(true);
+      if (failed) return Promise.resolve(false);
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          waiters = waiters.filter((w) => w !== done);
+          resolve(false);
+        }, TOKEN_WAIT_MS);
+        const done = (ok: boolean) => {
+          clearTimeout(timer);
+          resolve(ok);
+        };
+        waiters.push(done);
+        start();
       });
     };
-    if ((window as any).turnstile) state._renderTs();
 
     const showFailure = () => {
       status.textContent = 'We could not send your message. Please call us at ';
@@ -103,42 +156,60 @@ if (!siteKey && import.meta.env.PUBLIC_SITE_LIVE === '1') {
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (sending) return; // no double submission
       if (!form.checkValidity()) {
         status.textContent = 'Please fill in every field marked with a star, including the acknowledgement.';
         form.reportValidity();
+        start();
         return;
       }
-      if (!token) {
-        if (state._tsFailed) return showFailure();
-        status.textContent = 'One moment, we are checking your browser. Please press Send Inquiry again.';
-        return;
-      }
-      const data = new FormData(form);
+      sending = true;
       button.disabled = true;
-      status.textContent = 'Sending...';
+      let leaving = false;
       try {
-        const res = await fetch('/api/contact', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            name: data.get('name'),
-            email: data.get('email'),
-            phone: data.get('phone'),
-            message: data.get('message'),
-            acknowledged: data.get('acknowledged') === 'on',
-            company: data.get('company'),
-            form: kind,
-            fillMs: Date.now() - pageLoaded,
-            turnstileToken: token,
-          }),
-        });
+        if (!token) {
+          status.textContent = 'One moment, we are checking your browser...';
+          const ok = await waitForToken();
+          if (!ok) {
+            if (failed) showFailure();
+            else status.textContent = 'Please complete the check above, then press Send Inquiry again.';
+            return;
+          }
+        }
+        const data = new FormData(form);
+        status.textContent = 'Sending...';
+        const sentToken = token;
+        token = ''; // a token works once
+        let res: Response;
+        try {
+          res = await fetch('/api/contact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              name: data.get('name'),
+              email: data.get('email'),
+              phone: data.get('phone'),
+              message: data.get('message'),
+              acknowledged: data.get('acknowledged') === 'on',
+              company: data.get('company'),
+              form: kind,
+              fillMs: Date.now() - pageLoaded,
+              turnstileToken: sentToken,
+            }),
+          });
+        } catch {
+          showFailure();
+          (window as any).turnstile?.reset(widgetId);
+          return;
+        }
         const result = await res.json().catch(() => ({}));
         if (res.ok && result.ok) {
           if (result.preview) {
             status.textContent = result.message || 'Preview: nothing was sent.';
-            button.disabled = false;
+            (window as any).turnstile?.reset(widgetId);
             return;
           }
+          leaving = true; // keep the button off while the thank-you page loads
           location.href = '/thank-you/';
           return;
         }
@@ -147,12 +218,13 @@ if (!siteKey && import.meta.env.PUBLIC_SITE_LIVE === '1') {
         } else {
           showFailure();
         }
-      } catch {
-        showFailure();
+        (window as any).turnstile?.reset(widgetId);
+      } finally {
+        if (!leaving) {
+          sending = false;
+          button.disabled = false;
+        }
       }
-      token = '';
-      (window as any).turnstile?.reset(widgetId);
-      button.disabled = false;
     });
   });
 </script>

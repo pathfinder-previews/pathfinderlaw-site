@@ -4,7 +4,7 @@ How the website's contact forms work, what a person must do before launch, and h
 
 ## How it works, in plain words
 
-1. A visitor fills in the form (the main Contact form, or the sidebar form on bio, practice-area and city pages; both are the same component, `src/components/ContactForm.astro`). The page checks the fields, shows Cloudflare's bot check (Turnstile), and sends the entry to `/api/contact`.
+1. A visitor fills in the form (the main Contact form, or the sidebar form on bio, practice-area and city pages; both are the same component, `src/components/ContactForm.astro`). The page checks the fields, loads Cloudflare's bot check (Turnstile) the first time the visitor uses the form (not on page load), and sends the entry to `/api/contact`.
 2. A small Cloudflare Worker (`src/worker/`) answers only `/api/*`. Every other page is still a plain static file.
 3. The Worker checks the entry again on the server (including the required acknowledgement checkbox; an entry without it is refused and never stored).
 4. **It saves the entry to the database first** (Cloudflare D1, database `pathfinder-forms`), before any screening or emailing.
@@ -21,8 +21,10 @@ How the website's contact forms work, what a person must do before launch, and h
 | Sent in under 3 seconds | yes | yes, with "[Screened]" | Thank-you page |
 | Hidden trap field filled in (a bot) | yes, as screened | no | Looks like success (so the bot learns nothing) |
 | Turnstile says "not human" | yes, as screened | no | Failure message with the phone number |
+| Turnstile token issued for a hostname not in `ALLOWED_HOSTNAMES` | yes, as screened | no | Failure message with the phone number |
 | Rules store missing or broken | yes, as unsure | yes, as a normal lead | Thank-you page |
-| Turnstile service unreachable | yes | yes (a Cloudflare outage must not cost a lead) | Thank-you page |
+| Turnstile service unreachable | yes | yes (a Cloudflare outage must not cost a lead), subject ends "- spam check unavailable" | Thank-you page |
+| `TURNSTILE_SECRET` missing (setup mistake) | yes | yes, subject ends "- TURNSTILE NOT CONFIGURED"; `ALERT_URL` pinged (at most once an hour) and the code `turnstile_not_configured` logged | Thank-you page |
 | Database down | no (email only, flagged "NOT saved") | yes | Thank-you page, and the alarm fires |
 | Gmail refuses or is down | yes, marked failed | no | Failure message with the phone number, alarm fires |
 | Missing acknowledgement or bad field | no | no | "Please check the fields" |
@@ -41,15 +43,17 @@ How the website's contact forms work, what a person must do before launch, and h
 - Spam (rows marked screened) is deleted after 90 days by the daily job. Leads and unsure rows are kept.
 - Every submission, screened ones included, is treated as confidential.
 - The email footer repeats that no attorney-client relationship exists and that the sender acknowledged this.
+- Every lead email has a line "Bot check (Turnstile): ..." showing `pass`, `fail`, `spam check unavailable` or `TURNSTILE NOT CONFIGURED`. The launch-day test from a phone should show `pass`.
+- The once-an-hour limit on the "Turnstile not configured" alarm is a self-expiring key (`alert-sent:turnstile_not_configured`) in the same settings store as the rules. It needs no setup and can be ignored.
 - On a death claim or an incident that hurt more than one worker, run a conflict check on the names before reading further (plan rule).
 
 ### Daily jobs (cron)
 | UTC time | Job |
 |---|---|
 | 12:15 | **Morning self-test.** Sends a message tagged `[Form Test xxxxxxxx]` through the same path to both inboxes. If Gmail accepts it, the Worker pings `HEARTBEAT_URL`. If not, no ping, and the outside service raises the alarm. |
-| 12:30 | **Daily digest** email (yesterday's lead count; every screened message with its reason; a check that every logged submission from the last 7 days was delivered; error counts; a note if two days passed with no submissions), then the 90-day spam purge. |
+| 12:30 | **Daily digest** email (yesterday's lead count; every screened message with its reason; a check that every logged submission from the last 7 days was delivered, listing the name, email, phone, time and id of any that were not so the person can be called back without opening the database; error counts; a note if two days passed with no submissions), then the 90-day spam purge. |
 
-Cron runs in UTC. 12:30 UTC is 7:30 a.m. Eastern standard time (now until March 14, 2027). **When daylight time starts, change both times to 11:15 and 11:30 in `wrangler.jsonc`** and the same two cron text strings in `src/worker/index.ts`.
+Cron runs in UTC. 12:30 UTC is 7:30 a.m. Eastern standard time (now until March 14, 2027). **When daylight time starts, change only the hours in `wrangler.jsonc`, from 12 to 11 (`15 11 * * *` and `30 11 * * *`). Nothing else needs to change.** The Worker picks the job by the minute alone (15 = self-test, 30 = digest and purge), so keep the minutes at 15 and 30. Any other minute is logged as `cron_unrecognized` and does nothing.
 
 The Gmail filters from the plan should match only the exact "[Screened]" tag and the "[Form Test" tag, so no filter can bury a real lead.
 
@@ -62,6 +66,7 @@ The Gmail filters from the plan should match only the exact "[Screened]" tag and
 | `HEARTBEAT_URL` | Worker secret | The check-in service's "I am alive" address | Bryn (after the vendor is chosen) |
 | `ALERT_URL` | Worker secret | The check-in service's "failure" address | Bryn |
 | `PUBLIC_TURNSTILE_SITE_KEY` | Build variable (not secret; it is public on the page) | Turnstile's public site key | Set in the live Worker's Build variables |
+| `ALLOWED_HOSTNAMES` | Plain variable in `wrangler.jsonc` (not secret) | Comma-separated hostnames a Turnstile token may be issued for. Default `pathfinderlaw.com,www.pathfinderlaw.com` (also used if unset). A token from any other hostname is stored as screened (`turnstile_wrong_hostname`), not emailed, and the visitor sees the phone number, the same as a failed check. For the launch test, add the locked test hostname to the list in `wrangler.jsonc`, deploy, test, then remove it. Edit it in the file, not the dashboard: every deploy resets plain variables to the file. | Claude or Bryn, by a commit |
 
 Previews need none of these. The previews build uses Cloudflare's published always-pass Turnstile test key automatically. A **live** build (`PUBLIC_SITE_LIVE=1`) with no `PUBLIC_TURNSTILE_SITE_KEY` fails on purpose, so the test key can never go live by accident.
 
@@ -98,7 +103,7 @@ Previews need none of these. The previews build uses Cloudflare's published alwa
 - [ ] Confirm the next morning's digest arrives at 7:30
 - [ ] Confirm the privacy policy mentions Turnstile, Web Analytics, and the retention schedule
 - [ ] Confirm the old Gravity Forms and Mailgun stop being used at cutover; Seventh Wall confirms deletion in writing
-- [ ] Put a reminder on the calendar for March 2027 to change the cron hours (daylight time)
+- [ ] Put a reminder on the calendar for March 2027 to change the cron hours in `wrangler.jsonc` from 12 to 11 (daylight time; hours only)
 
 ## Running the tests and a local trial
 ```bash

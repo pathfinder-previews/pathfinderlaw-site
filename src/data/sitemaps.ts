@@ -31,6 +31,7 @@ export const sitemaps: Record<string, SitemapUrl[]> = {
     '/reviews/',
     '/results/',
     '/disclaimer/',
+    '/accessibility/',
     '/about-us/',
     '/virginia-workers-comp-faq/',
     EASTERN_SHORE,

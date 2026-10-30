@@ -1,10 +1,28 @@
+import { logCode } from './alerts.ts';
 import { handleContact } from './contact.ts';
 import { runDigest, runPurge, runSelfTest } from './scheduled.ts';
-import { realDeps, type Env } from './types.ts';
+import { realDeps, type Deps, type Env } from './types.ts';
 
-// Cron triggers (UTC), set in wrangler.jsonc:
-//   "15 12 * * *"  morning self-test (7:15 a.m. Eastern in winter)
-//   "30 12 * * *"  daily digest, then spam purge (7:30 a.m. Eastern in winter)
+// Cron triggers (UTC) are set only in wrangler.jsonc. Jobs are chosen by the
+// MINUTE alone, so the hours can change there (daylight saving) with no code change:
+//   minute 15  morning self-test
+//   minute 30  daily digest, then spam purge
+//   anything else: logged and ignored
+export function cronJob(cron: string): 'self_test' | 'digest' | 'none' {
+  const minute = cron.trim().split(/\s+/)[0];
+  if (minute === '15') return 'self_test';
+  if (minute === '30') return 'digest';
+  return 'none';
+}
+
+export async function runScheduled(cron: string, env: Env, deps: Deps): Promise<string> {
+  const job = cronJob(cron);
+  if (job === 'self_test') await runSelfTest(env, deps);
+  else if (job === 'digest') await runDigest(env, deps).then(() => runPurge(env, deps));
+  else logCode('cron_unrecognized', { minute: cron.trim().split(/\s+/)[0] ?? '' });
+  return job;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -14,10 +32,6 @@ export default {
   },
 
   async scheduled(event: { cron: string }, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }) {
-    if (event.cron === '15 12 * * *') {
-      ctx.waitUntil(runSelfTest(env, realDeps));
-    } else {
-      ctx.waitUntil(runDigest(env, realDeps).then(() => runPurge(env, realDeps)));
-    }
+    ctx.waitUntil(runScheduled(event.cron, env, realDeps));
   },
 };

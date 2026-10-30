@@ -69,6 +69,8 @@ interface Row {
   delivery_detail: string | null;
   name: string;
   email: string;
+  phone: string;
+  is_test: number;
 }
 
 export async function buildDigest(env: Env, deps: Deps): Promise<{ subject: string; body: string }> {
@@ -76,7 +78,7 @@ export async function buildDigest(env: Env, deps: Deps): Promise<{ subject: stri
   const now = deps.now();
   const day = etDayRange(now, 1);
   const prior = etDayRange(now, 2);
-  const cols = 'id, created_at, form, outcome, reason, turnstile, delivery_status, delivery_detail, name, email';
+  const cols = 'id, created_at, form, outcome, reason, turnstile, delivery_status, delivery_detail, name, email, phone, is_test';
 
   const yesterday = (
     await env.DB.prepare(`SELECT ${cols} FROM submissions WHERE created_at >= ? AND created_at < ? ORDER BY created_at`)
@@ -105,6 +107,7 @@ export async function buildDigest(env: Env, deps: Deps): Promise<{ subject: stri
   const errors = {
     sendFailures: yesterday.filter((r) => r.delivery_status === 'failed').length,
     turnstileErrors: yesterday.filter((r) => r.turnstile === 'error').length,
+    turnstileNotConfigured: yesterday.filter((r) => r.turnstile === 'not_configured').length,
     rulesErrors: yesterday.filter((r) => r.reason === 'rules_error').length,
   };
 
@@ -124,16 +127,26 @@ export async function buildDigest(env: Env, deps: Deps): Promise<{ subject: stri
   if (undelivered.length === 0) {
     lines.push(`- OK. Every logged submission from the last 7 days that should have been emailed was delivered.`);
   } else {
-    lines.push(`- PROBLEM. ${undelivered.length} logged submission(s) were not delivered. Open the database and look at these ids:`);
-    for (const r of undelivered) lines.push(`  ${r.id} (${r.created_at}, ${r.delivery_status}${r.delivery_detail ? `: ${r.delivery_detail}` : ''})`);
+    // Contact details are listed so nobody has to open the database to call the person back.
+    // Message text is left out (it can be long); it is in the database under the id.
+    lines.push(`- PROBLEM. ${undelivered.length} logged submission(s) were not delivered. Contact these people (the message text is in the database under the id):`);
+    for (const r of undelivered) {
+      const when = new Date(r.created_at).toLocaleString('en-US', { timeZone: ET, dateStyle: 'medium', timeStyle: 'short' });
+      const tag = isTest(r) ? ' [morning self-test, no action needed]' : '';
+      lines.push(`  ${r.name}, ${r.email}, ${r.phone}, ${when} Eastern${tag}`);
+      lines.push(`    id ${r.id}, ${r.form} form, ${r.delivery_status}${r.delivery_detail ? `: ${r.delivery_detail}` : ''}`);
+    }
   }
   lines.push(`- Morning self-test rows yesterday: ${testRows.length} (${testRows.filter((r) => r.delivery_status === 'sent').length} delivered)`);
   lines.push('');
   lines.push(`Errors yesterday: ${errors.sendFailures} failed send(s), ${errors.turnstileErrors} bot-check error(s), ${errors.rulesErrors} rules error(s).`);
+  if (errors.turnstileNotConfigured) {
+    lines.push(`TURNSTILE NOT CONFIGURED on ${errors.turnstileNotConfigured} submission(s): the TURNSTILE_SECRET secret is missing, so no bot check ran. Add it in the Cloudflare dashboard.`);
+  }
   if ((twoDayCount?.n ?? 0) === 0) {
     lines.push('', 'NOTE: no submissions at all in the last two days. If that is unusual, test the form from a phone.');
   }
-  const flag = undelivered.length || errors.sendFailures ? ' (ATTENTION)' : '';
+  const flag = undelivered.length || errors.sendFailures || errors.turnstileNotConfigured ? ' (ATTENTION)' : '';
   return { subject: `Form digest: ${leads.length} lead(s), ${screened.length} screened${flag}`, body: lines.join('\n') };
 }
 

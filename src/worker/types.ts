@@ -11,6 +11,7 @@ export interface D1Database {
 }
 export interface KVNamespace {
   get(key: string): Promise<string | null>;
+  put?(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>;
 }
 
 export interface Env {
@@ -24,6 +25,8 @@ export interface Env {
   ALERT_URL?: string;
   // Plain variables
   PREVIEW_MODE?: string;
+  // Comma-separated hostnames a Turnstile token may come from (default in config.ts).
+  ALLOWED_HOSTNAMES?: string;
   // Test-only overrides so local runs can point at stand-ins. Unset in production.
   GOOGLE_TOKEN_URL?: string;
   GMAIL_SEND_URL?: string;

@@ -71,6 +71,22 @@ test('XML page sitemap lists the Eastern Shore page once, and arears_served does
   assert.ok(!areas.includes(SHORE));
 });
 
+test('XML page sitemap lists the accessibility page once', opts, () => {
+  const page = readFileSync(new URL('page-sitemap.xml', dist), 'utf8');
+  assert.equal(page.split('https://pathfinderlaw.com/accessibility/</loc>').length - 1, 1);
+});
+
+test('Open Graph: site name is the firm; blog posts are articles, other pages websites', opts, () => {
+  for (const page of ['/', '/contact/']) {
+    const html = read(page);
+    assert.match(html, /<meta property="og:site_name" content="Pathfinder Injury Law">/);
+    assert.match(html, /<meta property="og:type" content="website">/);
+  }
+  const post = readFileSync(new URL('post-sitemap.xml', dist), 'utf8').match(/<loc>https:\/\/pathfinderlaw\.com(\/[^<]+)<\/loc>/g)!
+    .map((l) => l.replace(/<\/?loc>|https:\/\/pathfinderlaw\.com/g, '')).find((p) => p !== '/blog/')!;
+  assert.match(read(post), /<meta property="og:type" content="article">/);
+});
+
 test('redirects: the occupational-diseases redirect stays and nothing redirects the Eastern Shore address', () => {
   const redirects = readFileSync(new URL('../public/_redirects', import.meta.url), 'utf8');
   assert.ok(/occupational-diseases/.test(redirects));
